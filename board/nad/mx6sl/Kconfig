@@ -1,0 +1,20 @@
+if TARGET_NAD_MX6SL
+
+config SYS_BOARD
+	default "mx6sl"
+
+config SYS_VENDOR
+	default "nad"
+
+config SYS_CONFIG_NAME
+	default "nad_mx6sl"
+
+config NAD_C390V2
+	bool "C390v2"
+	default "n"
+
+config MFG
+	bool "Build u-boot for use with mfg flasher."
+	default "n"
+
+endif

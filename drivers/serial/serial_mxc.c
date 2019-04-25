@@ -180,7 +180,12 @@ static void _mxc_serial_setbrg(struct mxc_uart *base, unsigned long clk,
 #error "define CONFIG_MXC_UART_BASE to use the MXC UART driver"
 #endif
 
+#ifndef CONFIG_MXC_PIC_UART_BASE
+#error "define CONFIG_MXC_PIC_UART_BASE to use the PIC UART driver"
+#endif
+
 #define mxc_base	((struct mxc_uart *)CONFIG_MXC_UART_BASE)
+#define pic32_base	((struct mxc_uart *)CONFIG_MXC_PIC_UART_BASE)
 
 static void mxc_serial_setbrg(void)
 {
@@ -192,11 +197,24 @@ static void mxc_serial_setbrg(void)
 	_mxc_serial_setbrg(mxc_base, clk, gd->baudrate, false);
 }
 
+static void mxc_serial_setbrg_pic(void)
+{
+	u32 clk = imx_get_uartclk();
+	_mxc_serial_setbrg(pic32_base, clk, CONFIG_BAUDRATE_PIC, false);
+}
+
 static int mxc_serial_getc(void)
 {
 	while (readl(&mxc_base->ts) & UTS_RXEMPTY)
 		WATCHDOG_RESET();
 	return (readl(&mxc_base->rxd) & URXD_RX_DATA); /* mask out status from upper word */
+}
+
+int mxc_serial_getc_pic(void)
+{
+	while (readl(&pic32_base->ts) & UTS_RXEMPTY)
+		WATCHDOG_RESET();
+	return (readl(&pic32_base->rxd) & URXD_RX_DATA); /* mask out status from upper word */
 }
 
 static void mxc_serial_putc(const char c)
@@ -212,11 +230,31 @@ static void mxc_serial_putc(const char c)
 		WATCHDOG_RESET();
 }
 
+static void mxc_serial_putc_pic(const char c)
+{
+	/* If \n, also do \r */
+	if (c == '\n')
+		mxc_serial_putc_pic('\r');
+	writel(c, &pic32_base->txd);
+
+	/* wait for transmitter to be ready */
+	while (!(readl(&pic32_base->ts) & UTS_TXEMPTY))
+		WATCHDOG_RESET();
+}
+
 /* Test whether a character is in the RX buffer */
 static int mxc_serial_tstc(void)
 {
 	/* If receive fifo is empty, return false */
 	if (readl(&mxc_base->ts) & UTS_RXEMPTY)
+		return 0;
+	return 1;
+}
+
+int mxc_serial_tstc_pic(void)
+{
+	/* If receive fifo is empty, return false */
+	if (readl(&pic32_base->ts) & UTS_RXEMPTY)
 		return 0;
 	return 1;
 }
@@ -234,6 +272,15 @@ static int mxc_serial_init(void)
 	return 0;
 }
 
+static int mxc_serial_init_pic(void)
+{
+	_mxc_serial_init(pic32_base);
+
+	mxc_serial_setbrg_pic();
+
+	return 0;
+}
+
 static struct serial_device mxc_serial_drv = {
 	.name	= "mxc_serial",
 	.start	= mxc_serial_init,
@@ -245,9 +292,30 @@ static struct serial_device mxc_serial_drv = {
 	.tstc	= mxc_serial_tstc,
 };
 
+static struct serial_device mxc_serial_pic_drv = {
+	.name	= "mxc_pic_serial",
+	.start	= mxc_serial_init_pic,
+	.stop	= NULL,
+	.setbrg	= mxc_serial_setbrg_pic,
+	.putc	= mxc_serial_putc_pic,
+	.puts	= default_serial_puts_pic,
+	.getc	= mxc_serial_getc_pic,
+	.tstc	= mxc_serial_tstc_pic,
+};
+
+void default_serial_puts_pic(const char *s)
+{
+	struct serial_device *dev = &mxc_serial_pic_drv;
+	while (*s)
+		dev->putc(*s++);
+}
+
 void mxc_serial_initialize(void)
 {
 	serial_register(&mxc_serial_drv);
+	serial_register(&mxc_serial_pic_drv);
+
+	mxc_serial_init_pic();
 }
 
 __weak struct serial_device *default_serial_console(void)

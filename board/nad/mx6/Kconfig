@@ -1,0 +1,28 @@
+if TARGET_NAD_NMB
+
+config SYS_BOARD
+	default "mx6"
+
+config SYS_VENDOR
+	default "nad"
+
+config SYS_CONFIG_NAME
+	default "nad_nmb"
+
+config NAD_DRAM_HALF_GIG
+	bool "NMB has 512MB RAM"
+	default "n"
+
+config NAD_BOOT_GPIO_VM300
+	bool "Boot GPIO VM300"
+	default "n"
+
+config NAD_BOOT_GPIO_C658
+	bool "Boot GPIO C658"
+	default "n"
+
+config MFG
+	bool "Build u-boot for use with mfg flasher."
+	default "n"
+
+endif

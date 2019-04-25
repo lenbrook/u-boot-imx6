@@ -1,0 +1,6 @@
+NAD_MX6SL BOARD
+M:	Jonathan Bagg <jbagg@lenbrook.com>
+S:	Maintained
+F:	board/nad/mx6sl/
+F:	include/configs/nad_mx6sl.h
+F:	configs/nad_mx6sl_defconfig

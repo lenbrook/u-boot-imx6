@@ -22,6 +22,10 @@ struct serial_device {
 
 void default_serial_puts(const char *s);
 
+extern int mxc_serial_getc_pic(void);
+extern void default_serial_puts_pic(const char *s);
+extern int mxc_serial_tstc_pic(void);
+
 extern struct serial_device serial_smc_device;
 extern struct serial_device serial_scc_device;
 extern struct serial_device *default_serial_console(void);

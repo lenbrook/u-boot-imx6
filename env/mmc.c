@@ -354,3 +354,29 @@ U_BOOT_ENV_LOCATION(mmc) = {
 	.save		= env_save_ptr(env_mmc_save),
 #endif
 };
+
+uchar upgrade_flag_in_mmc(void)
+{
+	const char uflag[] = {"Upgrade ME! - 061803"};
+	uchar i, upgrade=1;
+	ALLOC_CACHE_ALIGN_BUFFER(char, buff, 512);
+
+	struct mmc *mmc = find_mmc_device(CONFIG_SYS_MMC_ENV_DEV);
+
+	if (init_mmc_for_env(mmc))
+		return 0;
+
+	if (read_env(mmc, 512, 1529 * 512, buff))
+		printf("Upgrade flag read failed\n");
+
+	for (i=0;i<sizeof(uflag);i++)
+	{
+		if (uflag[i] != buff[i])
+		{
+			upgrade = 0;
+			break;
+		}
+	}
+
+	return upgrade;
+}

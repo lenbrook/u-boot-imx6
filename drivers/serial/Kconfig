@@ -643,4 +643,8 @@ config SYS_SDMR
 	depends on MPC8XX_CONS
 	default 0
 
+config BAUDRATE_PIC
+	int "NAD NMB pic32 UART Baudrate"
+	default 115200
+
 endmenu

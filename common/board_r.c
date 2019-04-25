@@ -54,6 +54,7 @@
 #include <linux/compiler.h>
 #include <linux/err.h>
 #include <efi_loader.h>
+#include <asm/gpio.h>
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -651,6 +652,160 @@ static int initr_kbd(void)
 }
 #endif
 
+#define KEY_PRESSED_VOLUMEUP 	0x01
+#define KEY_PRESSED_MUTE 	0x02
+#define KEY_PRESSED_FORWARD 	0x04
+#define KEY_PRESSED_BACK 	0x08
+#define KEY_PRESSED_VOLUMEDOWN 	0x10
+
+#define STATUS_LED_RED 		1
+#define STATUS_LED_GREEN 	2
+#define STATUS_LED_BLUE 	4
+
+
+void status_led_set(int nState)
+{
+	if (nState == STATUS_LED_RED)
+	{
+		default_serial_puts_pic("\rPWM.1.Duty=0000\r");
+		default_serial_puts_pic("\rPWM.2.Duty=0200\r");
+		default_serial_puts_pic("\rPWM.3.Duty=0000\r");
+	}
+	else if (nState == STATUS_LED_GREEN)
+	{
+		default_serial_puts_pic("\rPWM.1.Duty=0200\r");
+		default_serial_puts_pic("\rPWM.2.Duty=0000\r");
+		default_serial_puts_pic("\rPWM.3.Duty=0000\r");
+	}
+	else if (nState == STATUS_LED_BLUE)
+	{
+		default_serial_puts_pic("\rPWM.1.Duty=0000\r");
+		default_serial_puts_pic("\rPWM.2.Duty=0000\r");
+		default_serial_puts_pic("\rPWM.3.Duty=0200\r");
+	}
+	else
+	{
+		default_serial_puts_pic("\rPWM.1.Duty=0000\r");
+		default_serial_puts_pic("\rPWM.2.Duty=0000\r");
+		default_serial_puts_pic("\rPWM.3.Duty=0000\r");
+	}
+}
+
+#define UART_UPGRADE_BUFFER_SIZE	512
+
+unsigned char upgrade_IsUpgradeKeyPressed(void)
+{
+#if defined(CONFIG_NAD_BOOT_GPIO_VM300)
+	return !gpio_get_value(IMX_GPIO_NR(3, 19));
+#elif defined(CONFIG_NAD_BOOT_GPIO_C658)
+	return !gpio_get_value(IMX_GPIO_NR(3, 28));
+#elif defined(CONFIG_NAD_C390V2)
+	return !gpio_get_value(IMX_GPIO_NR(1, 10));
+#else // else normal Gen2 PIC32 keyboard
+	char c;
+	char *p;
+	bool bHardReset = false;
+	int n;
+	char buf[UART_UPGRADE_BUFFER_SIZE + 1];
+	int nTimeout = 2000; // 2 seconds, check 1 ms, 32 byte uart FIFO
+	//0.0868ms per char * 32 is 2.7ms before buffer will overflow
+
+	n = 0;
+	p = buf;
+
+	status_led_set(STATUS_LED_RED);
+	udelay(100 * 1000);
+	while (mxc_serial_tstc_pic())
+	{
+		c = mxc_serial_getc_pic();
+	}
+
+	default_serial_puts_pic("\rMain.POR?\r");
+	default_serial_puts_pic("\rKey.Data?\r");
+
+	while (nTimeout--)
+	{
+		while (mxc_serial_tstc_pic())
+		{
+			c = mxc_serial_getc_pic();
+
+			if (c == '\r' || c == '\n')
+			{
+				*p = '\0';
+				//if (p != buf) printf("%s\n", buf);
+				if (strstr(buf, "Main.POR=Yes") != NULL)
+				{
+					bHardReset = true;
+					default_serial_puts_pic("\rMain.POR=No\r");
+				}
+				else if (strstr(buf, "Main.POR=No") != NULL && !bHardReset)
+				{
+					printf("soft reset, don't check key press\n");
+					return 0;
+				}
+				else if ((strstr(buf, "Key.Data=02") || strstr(buf, "Key.Data=400")) && bHardReset)
+				{
+					printf("upgrade key pressed\n");
+					status_led_set(STATUS_LED_GREEN);
+					return 1;
+				}
+
+				p = buf;
+				*p = '\0';
+				n = 0;
+			}
+			else if (c == '\0')
+			{
+				//ignore characters
+			}
+			else
+			{
+				if (n++ >= UART_UPGRADE_BUFFER_SIZE)
+				{
+					*p = '\0';
+					return 0;
+				}
+				*p = c;
+				p++;
+			}
+		}
+
+		//put in a couple extra checks as a failsafe
+		if (nTimeout % 500 == 0)
+		{
+			default_serial_puts_pic("\rMain.POR?\r");
+			default_serial_puts_pic("\rKey.Data?\r");
+		}
+
+		udelay(1000);//delay a ms
+	}
+
+	return 0;
+#endif
+}
+
+static void get_mac_from_fuses(void)
+{
+	unsigned char mac[6];
+
+	imx_get_mac_from_fuse(0, mac);
+	eth_env_set_enetaddr("ethaddr", mac);
+}
+
+static int check_for_upgrade_mode(void)
+{
+	extern uchar upgrade_flag_in_mmc(void);
+
+	if (upgrade_IsUpgradeKeyPressed() || upgrade_flag_in_mmc())
+	{
+		printf("Running Upgrade\n");
+		set_default_env(NULL);
+		get_mac_from_fuses();
+	}
+
+	return 0;
+}
+
 static int run_main_loop(void)
 {
 #ifdef CONFIG_SANDBOX
@@ -861,6 +1016,9 @@ static init_fnc_t init_sequence_r[] = {
 #endif
 #ifdef CONFIG_PS2KBD
 	initr_kbd,
+#endif
+#ifndef CONFIG_MFG
+	check_for_upgrade_mode,
 #endif
 	run_main_loop,
 };

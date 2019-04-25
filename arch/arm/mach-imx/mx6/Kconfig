@@ -261,6 +261,12 @@ config TARGET_MX6SABRESD
 	select DM_THERMAL
 	select BOARD_EARLY_INIT_F
 
+config TARGET_NAD_NMB
+        bool "nad_nmb"
+
+config TARGET_NAD_MX6SL
+        bool "Support nad_mx6sl"
+
 config TARGET_MX6SLEVK
 	bool "mx6slevk"
 	select MX6SL
@@ -470,6 +476,8 @@ source "board/freescale/mx6qarm2/Kconfig"
 source "board/freescale/mx6memcal/Kconfig"
 source "board/freescale/mx6sabreauto/Kconfig"
 source "board/freescale/mx6sabresd/Kconfig"
+source "board/nad/mx6/Kconfig"
+source "board/nad/mx6sl/Kconfig"
 source "board/freescale/mx6slevk/Kconfig"
 source "board/freescale/mx6sllevk/Kconfig"
 source "board/freescale/mx6sxsabresd/Kconfig"
