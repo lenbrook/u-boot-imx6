@@ -746,7 +746,6 @@ unsigned char upgrade_IsUpgradeKeyPressed(void)
 				else if ((strstr(buf, "Key.Data=02") || strstr(buf, "Key.Data=400")) && bHardReset)
 				{
 					printf("upgrade key pressed\n");
-					status_led_set(STATUS_LED_GREEN);
 					return 1;
 				}
 
@@ -798,6 +797,7 @@ static int check_for_upgrade_mode(void)
 
 	if (upgrade_IsUpgradeKeyPressed() || upgrade_flag_in_mmc())
 	{
+		status_led_set(STATUS_LED_GREEN);
 		printf("Running Upgrade\n");
 		set_default_env(NULL);
 		get_mac_from_fuses();
